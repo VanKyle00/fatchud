@@ -4,6 +4,10 @@ Web app for figuring out where to order delivery from. Shows nearby restaurants 
 
 Built with Next.js 16, React 19, TypeScript, Tailwind v4, and MapLibre GL JS over OpenFreeMap tiles — so no Mapbox or Google Maps fees on map rendering. The only paid dependency is Google Places (New) for restaurant data.
 
+## System design
+
+![FatChud.me system design](public/system-design.svg)
+
 ## Features
 
 - **Map-first discovery.** Up to 60 nearby restaurants from Google Places, plotted as rating-bearing pins.
@@ -21,7 +25,7 @@ Each delivery platform exposes a wildly different surface, so each scraper attac
 
 - **Grubhub** — Real OAuth-style anonymous auth: `POST /auth` with a public client ID, get a bearer token, hit `/restaurants/search/search_listing`. (`lib/grubhub.ts`)
 - **UberEats** — Undocumented but completely unauthenticated public endpoint at `/api/getFeedV1` with a literal `x-csrf-token: x` header. No tokens, no signing — just works. (`lib/ubereats.ts`)
-- **DoorDash** — No API at all. Fetch the server-rendered `/search/store/<query>/` page and regex-parse the analytics payload embedded in the React Server Components stream for `store_name`/`store_latitude`/`store_longitude` triples. (`lib/doordash.ts`)
+- **DoorDash** — *Disabled in production.* The original approach was to fetch the server-rendered `/search/store/<query>/` page and regex-parse `store_name`/`store_latitude`/`store_longitude` triples out of the React Server Components stream. Cloudflare/Datadome now block every scrape attempt from Vercel — see [Enabling DoorDash scraping locally](#enabling-doordash-scraping-locally) below for what's required to get it working on a local clone. The DoorDash order button still renders unconditionally as a best-effort deep link.
 
 ### Self-healing Grubhub auth
 
@@ -63,6 +67,27 @@ npm run dev
 ```
 
 Requires a Google Cloud project with **Places API (New)** and **Geocoding API** enabled. Restrict the key to HTTP referrers from your deployment domain — the only credential is server-side, but a leaked unrestricted key is still cheap to abuse.
+
+### Enabling DoorDash scraping locally
+
+DoorDash is wired up as deep-link-only in production because Cloudflare/Datadome will not let the scraper through from Vercel. From a developer machine on a residential ISP it generally *does* work, which is the only setup where the original scraper is still useful.
+
+**To turn it back on for a local clone:**
+
+1. Restore `lib/doordash.ts` from git history (the file was removed when production gave up on it — see `SCRAPER_NOTES.md` for the rationale).
+2. In `app/api/delivery-check/route.ts`, add `isOnDoorDash` to the `Promise.all` fan-out alongside `isOnGrubhub` / `isOnUberEats`, and write the result into `availability.doordash` instead of the hardcoded `false`.
+3. Run `npm run dev` and hit `/api/delivery-check` with a known-good restaurant to confirm the response now carries `"doordash": true` where expected.
+
+**Why this only works locally — and what specifically fails on Vercel:**
+
+DoorDash's edge stack gates on two independent signals; you need to pass both, and Vercel fails both.
+
+- **IP reputation.** Direct fetches from Vercel's datacenter IP ranges get an immediate `403` from Cloudflare. A residential proxy (we tried this via a `DOORDASH_PROXY_URL` env var) only partially helps — some requests get through, but enough are met with `403` or `ECONNRESET` that the per-restaurant check is unusably flaky.
+- **TLS fingerprint (JA3).** Node's default TLS ClientHello looks nothing like Chrome's. Even when a residential proxy lands the request on a "good" IP, Datadome flags the handshake and drops the connection. We tried `cycletls` to spoof a Chrome JA3 over the residential proxy — still blocked. A paid web-unlocker service (Bright Data, ScraperAPI, etc.) that handles both signals end-to-end would likely work, but is out of scope for the free-tier deploy.
+
+Running locally sidesteps both: your home ISP IP isn't on any datacenter blocklist, and the same vanilla Node TLS handshake that gets flagged from `*.vercel.app` is unremarkable when it originates from a residential connection. No proxy or JA3 spoofing needed.
+
+⚠️ Keep DoorDash *disabled* on any branch you intend to deploy. If `isOnDoorDash` is in the fan-out on Vercel, every restaurant returns `false` from that branch of the check, the global `available` filter shrinks accordingly, and the visible restaurant list silently gets worse.
 
 ## Operational notes
 

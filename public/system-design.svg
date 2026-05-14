@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-dashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <linearGradient id="client-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dbeafe"/>
+      <stop offset="100%" stop-color="#bfdbfe"/>
+    </linearGradient>
+    <linearGradient id="api-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dcfce7"/>
+      <stop offset="100%" stop-color="#bbf7d0"/>
+    </linearGradient>
+    <linearGradient id="cache-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+    <linearGradient id="ext-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fce7f3"/>
+      <stop offset="100%" stop-color="#fbcfe8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="820" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="600" y="40" text-anchor="middle" font-size="24" font-weight="700" fill="#0f172a">FatChud.me — System Design</text>
+  <text x="600" y="62" text-anchor="middle" font-size="13" fill="#64748b">Next.js restaurant finder with delivery-platform verification</text>
+
+  <!-- ============ CLIENT (BROWSER) ============ -->
+  <rect x="40" y="100" width="320" height="320" rx="14" fill="url(#client-grad)" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="200" y="128" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">Browser (React Client)</text>
+  <text x="200" y="146" text-anchor="middle" font-size="11" fill="#1e40af">app/page.tsx</text>
+
+  <rect x="60" y="166" width="280" height="44" rx="8" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="200" y="186" text-anchor="middle" font-size="12" font-weight="600" fill="#1e3a8a">AddressInput</text>
+  <text x="200" y="201" text-anchor="middle" font-size="10" fill="#475569">typed address → /api/geocode</text>
+
+  <rect x="60" y="220" width="280" height="44" rx="8" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="200" y="240" text-anchor="middle" font-size="12" font-weight="600" fill="#1e3a8a">MapView</text>
+  <text x="200" y="255" text-anchor="middle" font-size="10" fill="#475569">Google Maps JS — pins + drag-to-search</text>
+
+  <rect x="60" y="274" width="280" height="44" rx="8" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="200" y="294" text-anchor="middle" font-size="12" font-weight="600" fill="#1e3a8a">RestaurantPanel + RandomPicker</text>
+  <text x="200" y="309" text-anchor="middle" font-size="10" fill="#475569">FilterBar, OrderButtons, visited toggles</text>
+
+  <rect x="60" y="328" width="280" height="44" rx="8" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="200" y="348" text-anchor="middle" font-size="12" font-weight="600" fill="#1e3a8a">lib/ip-location · lib/visited</text>
+  <text x="200" y="363" text-anchor="middle" font-size="10" fill="#475569">fallback center · localStorage visited set</text>
+
+  <text x="60" y="395" font-size="10" fill="#475569">State: located · ipCenter · pinCenter · restaurants ·</text>
+  <text x="60" y="408" font-size="10" fill="#475569">availability · filter · selectedId · visited</text>
+
+  <!-- ============ API ROUTES (Next.js server) ============ -->
+  <rect x="440" y="100" width="320" height="320" rx="14" fill="url(#api-grad)" stroke="#10b981" stroke-width="1.5"/>
+  <text x="600" y="128" text-anchor="middle" font-size="15" font-weight="700" fill="#065f46">Next.js Route Handlers (Vercel)</text>
+  <text x="600" y="146" text-anchor="middle" font-size="11" fill="#047857">app/api/*</text>
+
+  <rect x="460" y="166" width="280" height="68" rx="8" fill="#ffffff" stroke="#34d399"/>
+  <text x="600" y="186" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">GET /api/geocode</text>
+  <text x="600" y="202" text-anchor="middle" font-size="10" fill="#475569">?q=address → { location, formattedAddress }</text>
+  <text x="600" y="218" text-anchor="middle" font-size="10" fill="#475569">→ Google Geocoding API</text>
+
+  <rect x="460" y="244" width="280" height="68" rx="8" fill="#ffffff" stroke="#34d399"/>
+  <text x="600" y="264" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">POST /api/places/nearby</text>
+  <text x="600" y="280" text-anchor="middle" font-size="10" fill="#475569">{ lat, lng, radius } → Restaurant[]</text>
+  <text x="600" y="296" text-anchor="middle" font-size="10" fill="#475569">lib/google-places · type=restaurant</text>
+
+  <rect x="460" y="322" width="280" height="80" rx="8" fill="#ffffff" stroke="#34d399"/>
+  <text x="600" y="342" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">POST /api/delivery-check</text>
+  <text x="600" y="358" text-anchor="middle" font-size="10" fill="#475569">{ restaurants[] } → availability per id</text>
+  <text x="600" y="374" text-anchor="middle" font-size="10" fill="#475569">Promise.all → isOnGrubhub · isOnUberEats</text>
+  <text x="600" y="390" text-anchor="middle" font-size="10" fill="#94a3b8">DoorDash: deep-link only (Cloudflare blocks scrape)</text>
+
+  <!-- ============ CACHE LAYER ============ -->
+  <rect x="440" y="450" width="320" height="160" rx="14" fill="url(#cache-grad)" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="600" y="478" text-anchor="middle" font-size="15" font-weight="700" fill="#78350f">Two-Tier Cache · lib/cache.ts</text>
+
+  <rect x="460" y="496" width="130" height="96" rx="8" fill="#ffffff" stroke="#fbbf24"/>
+  <text x="525" y="516" text-anchor="middle" font-size="12" font-weight="600" fill="#78350f">L1 · Memory</text>
+  <text x="525" y="534" text-anchor="middle" font-size="10" fill="#475569">in-process Map</text>
+  <text x="525" y="550" text-anchor="middle" font-size="10" fill="#475569">per Vercel instance</text>
+  <text x="525" y="566" text-anchor="middle" font-size="10" fill="#475569">dies on cold start</text>
+  <text x="525" y="582" text-anchor="middle" font-size="10" fill="#475569">~0ms reads</text>
+
+  <rect x="610" y="496" width="130" height="96" rx="8" fill="#ffffff" stroke="#fbbf24"/>
+  <text x="675" y="516" text-anchor="middle" font-size="12" font-weight="600" fill="#78350f">L2 · Vercel KV</text>
+  <text x="675" y="534" text-anchor="middle" font-size="10" fill="#475569">@vercel/kv (Redis)</text>
+  <text x="675" y="550" text-anchor="middle" font-size="10" fill="#475569">persists cold starts</text>
+  <text x="675" y="566" text-anchor="middle" font-size="10" fill="#475569">backfills L1 on hit</text>
+  <text x="675" y="582" text-anchor="middle" font-size="10" fill="#475569">~10–30ms reads</text>
+
+  <!-- ============ EXTERNAL SERVICES ============ -->
+  <rect x="840" y="100" width="320" height="510" rx="14" fill="url(#ext-grad)" stroke="#ec4899" stroke-width="1.5"/>
+  <text x="1000" y="128" text-anchor="middle" font-size="15" font-weight="700" fill="#831843">External Services</text>
+
+  <rect x="860" y="148" width="280" height="64" rx="8" fill="#ffffff" stroke="#f472b6"/>
+  <text x="1000" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">Google Geocoding API</text>
+  <text x="1000" y="184" text-anchor="middle" font-size="10" fill="#475569">maps.googleapis.com/maps/api/geocode</text>
+  <text x="1000" y="200" text-anchor="middle" font-size="10" fill="#475569">GOOGLE_API_KEY · address → lat/lng</text>
+
+  <rect x="860" y="222" width="280" height="64" rx="8" fill="#ffffff" stroke="#f472b6"/>
+  <text x="1000" y="242" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">Google Places API (Nearby Search)</text>
+  <text x="1000" y="258" text-anchor="middle" font-size="10" fill="#475569">places.googleapis.com / Places v1</text>
+  <text x="1000" y="274" text-anchor="middle" font-size="10" fill="#475569">nearby restaurants within radius</text>
+
+  <rect x="860" y="296" width="280" height="78" rx="8" fill="#ffffff" stroke="#f472b6"/>
+  <text x="1000" y="316" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">Grubhub anonymous-auth API</text>
+  <text x="1000" y="332" text-anchor="middle" font-size="10" fill="#475569">api-gtm.grubhub.com · lib/grubhub.ts</text>
+  <text x="1000" y="348" text-anchor="middle" font-size="10" fill="#475569">extracts clientId from public config bundle,</text>
+  <text x="1000" y="364" text-anchor="middle" font-size="10" fill="#475569">rotates on 401 · search_listing → match</text>
+
+  <rect x="860" y="384" width="280" height="64" rx="8" fill="#ffffff" stroke="#f472b6"/>
+  <text x="1000" y="404" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">UberEats web</text>
+  <text x="1000" y="420" text-anchor="middle" font-size="10" fill="#475569">lib/ubereats.ts</text>
+  <text x="1000" y="436" text-anchor="middle" font-size="10" fill="#475569">name × lat/lng presence check</text>
+
+  <rect x="860" y="458" width="280" height="64" rx="8" fill="#ffffff" stroke="#f472b6" stroke-dasharray="4 3"/>
+  <text x="1000" y="478" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">DoorDash · deep link only</text>
+  <text x="1000" y="494" text-anchor="middle" font-size="10" fill="#475569">Cloudflare blocks scrape from datacenter IPs</text>
+  <text x="1000" y="510" text-anchor="middle" font-size="10" fill="#475569">availability.doordash always false</text>
+
+  <rect x="860" y="532" width="280" height="64" rx="8" fill="#ffffff" stroke="#f472b6"/>
+  <text x="1000" y="552" text-anchor="middle" font-size="12" font-weight="600" fill="#831843">ipapi.co (client-side)</text>
+  <text x="1000" y="568" text-anchor="middle" font-size="10" fill="#475569">lib/ip-location.ts</text>
+  <text x="1000" y="584" text-anchor="middle" font-size="10" fill="#475569">fallback map center before geocode</text>
+
+  <!-- ============ DEEP LINKS LANE ============ -->
+  <rect x="40" y="540" width="320" height="100" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="4 3"/>
+  <text x="200" y="568" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">Order Deep Links · lib/deep-links.ts</text>
+  <text x="200" y="588" text-anchor="middle" font-size="11" fill="#475569">OrderButtons render Grubhub / UberEats / DoorDash</text>
+  <text x="200" y="604" text-anchor="middle" font-size="11" fill="#475569">URLs computed in the browser — no server hop</text>
+  <text x="200" y="622" text-anchor="middle" font-size="10" fill="#94a3b8">DoorDash button always renders (best-effort search URL)</text>
+
+  <!-- ============ ARROWS ============ -->
+  <!-- Browser -> API routes -->
+  <line x1="360" y1="186" x2="460" y2="186" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="410" y="178" text-anchor="middle" font-size="10" fill="#475569">GET</text>
+
+  <line x1="360" y1="264" x2="460" y2="264" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="410" y="256" text-anchor="middle" font-size="10" fill="#475569">POST</text>
+
+  <line x1="360" y1="354" x2="460" y2="354" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="410" y="346" text-anchor="middle" font-size="10" fill="#475569">POST</text>
+
+  <!-- API -> External services -->
+  <line x1="740" y1="186" x2="860" y2="178" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="740" y1="278" x2="860" y2="252" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="740" y1="362" x2="860" y2="332" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="740" y1="370" x2="860" y2="412" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- API <-> Cache -->
+  <line x1="600" y1="402" x2="600" y2="450" stroke="#475569" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="620" y="430" font-size="10" fill="#475569">read/write</text>
+
+  <!-- Browser -> ipapi (dashed, direct) -->
+  <line x1="360" y1="350" x2="540" y2="430" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 3" fill="none"/>
+  <path d="M 360 350 Q 600 700 860 564" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 3" fill="none" marker-end="url(#arrow-dashed)"/>
+  <text x="540" y="690" font-size="10" fill="#64748b">client → ipapi.co (direct, no server)</text>
+
+  <!-- Browser -> Deep links lane -->
+  <line x1="200" y1="420" x2="200" y2="540" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow-dashed)"/>
+
+  <!-- ============ LEGEND ============ -->
+  <rect x="40" y="680" width="1120" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="60" y="704" font-size="13" font-weight="700" fill="#0f172a">Request flow</text>
+  <text x="60" y="724" font-size="11" fill="#334155">1. Client gets a center (typed address → /api/geocode · or fallback ipapi.co · or dragged pin).</text>
+  <text x="60" y="740" font-size="11" fill="#334155">2. Client POSTs center to /api/places/nearby → Google Places returns Restaurant[] → state.</text>
+  <text x="60" y="756" font-size="11" fill="#334155">3. Client POSTs the list to /api/delivery-check → server fans out to Grubhub + UberEats in parallel, caches per restaurant.</text>
+  <text x="60" y="772" font-size="11" fill="#334155">4. Verified results populate availability map → RestaurantPanel filters/spins; OrderButtons build deep links client-side.</text>
+  <text x="60" y="790" font-size="10" fill="#64748b">Solid arrow = HTTP request · Dashed = client-direct or UI-only path · Yellow = cache · Pink = external dependency</text>
+</svg>
