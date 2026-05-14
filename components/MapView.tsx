@@ -74,6 +74,9 @@ export function MapView({
       zoom: 1.5,
       attributionControl: false,
     });
+    // Reserve double-click for moving the search pin (see dblclick handler
+    // below); otherwise MapLibre's default would zoom in on every double-click.
+    map.doubleClickZoom.disable();
     mapRef.current = map;
 
     map.on("load", () => hidePoiLabels(map));
@@ -127,16 +130,17 @@ export function MapView({
     searchPinRef.current = marker;
   }, [pinCenter]);
 
-  // Click anywhere on the map (not on a marker) to move the search pin there.
+  // Double-click anywhere on the map (not on a marker) to move the search pin
+  // there. Single-click is left alone so it can scroll/pan/select normally.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const handler = (e: maplibregl.MapMouseEvent) => {
       onPinMoveRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
     };
-    map.on("click", handler);
+    map.on("dblclick", handler);
     return () => {
-      map.off("click", handler);
+      map.off("dblclick", handler);
     };
   }, []);
 
