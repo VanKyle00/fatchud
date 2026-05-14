@@ -11,9 +11,14 @@ Expect periodic breakage and check this file when something stops working.
   rather than throwing. If your list mysteriously empties, hit
   `/api/delivery-check` directly with curl for a known-good restaurant — that
   shows which platform(s) returned `false`.
-- **Cache is in-memory.** Each scraper holds a `Map<string, {result, expiresAt}>`
-  with a 7-day TTL. A server restart clears all of it. Easy upgrade later: write
-  through to `.cache/delivery.json` or SQLite.
+- **Two-tier cache (`lib/cache.ts`).** L1 is per-instance in-memory Map; L2 is
+  Vercel KV (Upstash Redis under the hood). Both share a 7-day TTL on writes;
+  L1 reads expire entries on the fly. KV is auto-detected via
+  `KV_REST_API_URL` + `KV_REST_API_TOKEN`; when unset (local dev), the system
+  silently falls back to L1-only. Per-instance Maps are gone — every scraper
+  goes through `readCache`/`writeCache`. Persistent results survive cold
+  starts and span instances, so the warm-cache window is no longer a single
+  function instance's lifetime.
 - **Name + coord matching.** All three match by normalized name overlap
   (`includes` either direction) AND haversine distance < 150 m from Google's
   coords. Franchises whose listed coords differ between Google and the platform

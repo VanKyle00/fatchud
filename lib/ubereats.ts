@@ -106,15 +106,15 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
+import { readCache, writeCache } from "@/lib/cache";
+
 const MATCH_RADIUS_M = 150;
-const TTL_MS = 1000 * 60 * 60 * 24 * 7;
-const availabilityCache = new Map<string, { result: boolean; expiresAt: number }>();
+const TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export async function isOnUberEats(name: string, lat: number, lng: number): Promise<boolean> {
-  const key = `${normalizeName(name)}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
-  const now = Date.now();
-  const cached = availabilityCache.get(key);
-  if (cached && cached.expiresAt > now) return cached.result;
+  const cacheKey = `scraper:ubereats:${normalizeName(name)}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
+  const cached = await readCache<boolean>(cacheKey);
+  if (cached !== null) return cached;
 
   let result = false;
   try {
@@ -136,6 +136,6 @@ export async function isOnUberEats(name: string, lat: number, lng: number): Prom
     result = false;
   }
 
-  availabilityCache.set(key, { result, expiresAt: now + TTL_MS });
+  await writeCache(cacheKey, result, TTL_SECONDS);
   return result;
 }
