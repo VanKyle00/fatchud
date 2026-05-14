@@ -164,7 +164,7 @@ export default function Home() {
         />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 max-h-[55vh] md:hidden">
+      <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 h-[55vh] md:hidden">
         <RestaurantPanel
           restaurants={available}
           filtered={filtered}
