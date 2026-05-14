@@ -173,7 +173,8 @@ export async function isOnGrubhub(name: string, lat: number, lng: number): Promi
         break;
       }
     }
-  } catch {
+  } catch (err) {
+    console.warn(`[grubhub] "${name}" failed:`, err instanceof Error ? err.message : err);
     result = false;
   }
 

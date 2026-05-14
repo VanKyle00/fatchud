@@ -78,7 +78,8 @@ export async function isOnDoorDash(name: string, lat: number, lng: number): Prom
         break;
       }
     }
-  } catch {
+  } catch (err) {
+    console.warn(`[doordash] "${name}" failed:`, err instanceof Error ? err.message : err);
     result = false;
   }
 

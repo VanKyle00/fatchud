@@ -33,14 +33,21 @@ export default function Home() {
     };
   }, []);
 
-  const available = useMemo(
-    () =>
-      restaurants.filter((r) => {
-        const a = availability[r.id];
-        return a?.grubhub === true || a?.ubereats === true || a?.doordash === true;
-      }),
-    [restaurants, availability],
-  );
+  const available = useMemo(() => {
+    if (restaurants.length === 0) return [];
+    const candidates = restaurants.filter((r) => r.delivery !== false);
+    if (candidates.length === 0) return [];
+
+    const allChecked = candidates.every((r) => availability[r.id] !== undefined);
+    if (!allChecked) return candidates;
+
+    const confirmed = candidates.filter((r) => {
+      const a = availability[r.id];
+      return a && (a.grubhub || a.ubereats || a.doordash);
+    });
+    if (confirmed.length === 0) return candidates;
+    return confirmed;
+  }, [restaurants, availability]);
   const cuisines = useMemo(() => availableCuisines(available), [available]);
   const filtered = useMemo(() => applyFilters(available, filter), [available, filter]);
 
