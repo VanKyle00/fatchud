@@ -8,12 +8,16 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
-  // cycletls ships platform binaries that aren't statically detected by
-  // @vercel/nft (the path is computed at runtime). Force-include only the
-  // Linux x64 binary (~19MB) and explicitly exclude the others (~95MB total)
-  // so the function bundle stays well under Vercel's size limits.
+  // cycletls spawns a Go subprocess. Marking it as external keeps it out of
+  // the Turbopack bundle so its __dirname resolves to node_modules/cycletls
+  // at runtime and the spawn path is correct.
+  serverExternalPackages: ["cycletls"],
+  // The Go binary path is computed at runtime via os.arch() so the tracer
+  // can't see it statically — force-include the whole dist/ folder, then
+  // exclude the binaries for platforms we don't deploy to so the function
+  // bundle doesn't balloon ~95MB beyond what we need.
   outputFileTracingIncludes: {
-    "/api/delivery-check": ["./node_modules/cycletls/dist/index"],
+    "/api/delivery-check": ["./node_modules/cycletls/dist/**"],
   },
   outputFileTracingExcludes: {
     "/api/delivery-check": [
