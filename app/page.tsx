@@ -124,7 +124,7 @@ export default function Home() {
   const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
+    <div className="relative h-dvh w-screen overflow-hidden">
       <MapView
         center={located?.location ?? ipCenter}
         precise={located !== null}
