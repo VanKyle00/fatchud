@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Cheese (triangle pointing down) -->
+  <path d="M 8 18 Q 32 8 56 18 L 32 58 Z" fill="#fcd34d"/>
+  <!-- Crust along the top arc -->
+  <path d="M 8 18 Q 32 8 56 18 L 54 23 Q 32 13 10 23 Z" fill="#b45309"/>
+  <!-- Side pepperoni -->
+  <circle cx="20" cy="30" r="4" fill="#dc2626"/>
+  <circle cx="44" cy="32" r="4" fill="#dc2626"/>
+  <!-- Smiley pepperoni in the middle -->
+  <circle cx="32" cy="42" r="7" fill="#dc2626"/>
+  <circle cx="29.5" cy="40.5" r="1.2" fill="#1f2937"/>
+  <circle cx="34.5" cy="40.5" r="1.2" fill="#1f2937"/>
+  <path d="M 28.5 44 Q 32 46.5 35.5 44" stroke="#1f2937" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+</svg>
