@@ -68,12 +68,20 @@ Expect periodic breakage and check this file when something stops working.
   `\"store_latitude\":N,\"store_longitude\":N,\"store_name\":\"...\"` in
   order. If DoorDash reorders the fields, renames any of them, or stops
   emitting that analytics payload during SSR, matches go to zero.
-- **Cloudflare/Datadome.** The single-request, no-cookie pattern works today.
-  If they start gating `/search/store/` on `ddweb_session_id` or a bot-token
-  cookie, our fetch will receive a challenge HTML page (or a 403), the regex
-  will find nothing, and the function will silently return `false`. The
-  cached `true` entries from the past 7 days will still serve, so the
-  failure won't be immediately obvious.
+- **Cloudflare/Datadome blocks datacenter IPs.** Production deployments on
+  Vercel/AWS/etc. get a 403 at the Cloudflare layer before the request ever
+  reaches DoorDash. Set `DOORDASH_PROXY_URL` to a residential HTTP proxy
+  (format `http://user:pass@gate.example.com:port`) and `lib/doordash.ts`
+  will route fetches through it via undici's `ProxyAgent`. Without the env
+  var set, fetches go direct (works on local/residential networks, 403s
+  from most clouds).
+- **Cached results outlive outages.** If they start gating on
+  `ddweb_session_id` or a bot-token cookie, our fetch will receive a
+  challenge HTML page (or a 403), the regex will find nothing, and the
+  function will silently return `false`. The cached `true` entries from the
+  past 7 days will still serve in a warm Vercel instance, so the failure
+  won't be immediately obvious — but cold starts re-scrape and a
+  consistently-blocked scraper means everything new will return false.
 - **No location-setting.** We pass `?lat=&lng=` in the URL but DoorDash may
   not honor it strictly — their session/IP may dominate. Mitigated by the
   150m haversine filter, which discards any out-of-area matches.

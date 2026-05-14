@@ -1,6 +1,14 @@
 // DoorDash availability check by parsing the SSR'd /search/store/ HTML for
 // the analytics payload embedded in the RSC stream. No auth or API key — but
 // also no formal contract, so the page structure can change without warning.
+//
+// DoorDash sits behind Cloudflare/Datadome and pre-blocks datacenter IPs
+// (including Vercel's). Set DOORDASH_PROXY_URL to a residential HTTP proxy
+// (e.g., http://user:pass@gate.provider.com:port) to route fetches through
+// a non-datacenter IP. When unset, fetches go direct (works locally, 403s
+// from most cloud runtimes).
+
+import { ProxyAgent } from "undici";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -11,15 +19,31 @@ const STORE_RE =
 
 type Hit = { name: string; lat: number; lng: number };
 
+let proxyAgent: ProxyAgent | null | undefined;
+function getProxyAgent(): ProxyAgent | null {
+  if (proxyAgent !== undefined) return proxyAgent;
+  const url = process.env.DOORDASH_PROXY_URL;
+  proxyAgent = url ? new ProxyAgent(url) : null;
+  return proxyAgent;
+}
+
 async function searchDoorDash(query: string, lat: number, lng: number): Promise<Hit[]> {
   const url = `https://www.doordash.com/search/store/${encodeURIComponent(query)}/?lat=${lat}&lng=${lng}`;
-  const res = await fetch(url, {
+  const agent = getProxyAgent();
+  const init = {
     headers: {
       "User-Agent": UA,
-      Accept: "text/html",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Upgrade-Insecure-Requests": "1",
     },
-  });
+    ...(agent && { dispatcher: agent }),
+  } as Parameters<typeof fetch>[1];
+  const res = await fetch(url, init);
   if (!res.ok) throw new Error(`doordash search ${res.status}`);
   const html = await res.text();
   const hits: Hit[] = [];
