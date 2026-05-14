@@ -103,7 +103,14 @@ export async function isOnDoorDash(name: string, lat: number, lng: number): Prom
       }
     }
   } catch (err) {
-    console.warn(`[doordash] "${name}" failed:`, err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const cause =
+      err instanceof Error && "cause" in err && err.cause
+        ? err.cause instanceof Error
+          ? `${err.cause.name}: ${err.cause.message}`
+          : String(err.cause)
+        : null;
+    console.warn(`[doordash] "${name}" failed: ${msg}${cause ? ` (cause: ${cause})` : ""}`);
     result = false;
   }
 
