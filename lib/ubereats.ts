@@ -1,11 +1,28 @@
 // UberEats availability check via their public getFeedV1 endpoint.
 // No real auth — just an x-csrf-token: x header. The endpoint shape can change
 // without notice; failures return false so the restaurant gets filtered out.
+//
+// UberEats geolocates by the REQUESTING IP, not the placeInfo we send (both
+// the lat/lng and addressLine1 fields are silently ignored). From Vercel's
+// datacenter IPs, every query returns an empty feedItems array because the
+// datacenter location has no UberEats coverage. Set UBEREATS_PROXY_URL to a
+// residential HTTP proxy (format http://user:pass@gate.example.com:port) to
+// route fetches through a non-datacenter IP and get real results.
+
+import { ProxyAgent } from "undici";
 
 const SEARCH_URL = "https://www.ubereats.com/api/getFeedV1";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+
+let proxyAgent: ProxyAgent | null | undefined;
+function getProxyAgent(): ProxyAgent | null {
+  if (proxyAgent !== undefined) return proxyAgent;
+  const url = process.env.UBEREATS_PROXY_URL;
+  proxyAgent = url ? new ProxyAgent(url) : null;
+  return proxyAgent;
+}
 
 type UberFeedItem = {
   store?: {
@@ -17,7 +34,8 @@ type UberFeedItem = {
 let firstCallDiagLogged = false;
 
 async function searchUberEats(query: string, lat: number, lng: number): Promise<UberFeedItem[]> {
-  const res = await fetch(SEARCH_URL, {
+  const agent = getProxyAgent();
+  const init = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -36,7 +54,9 @@ async function searchUberEats(query: string, lat: number, lng: number): Promise<
         type: "google_places",
       },
     }),
-  });
+    ...(agent && { dispatcher: agent }),
+  } as Parameters<typeof fetch>[1];
+  const res = await fetch(SEARCH_URL, init);
   if (!res.ok) throw new Error(`ubereats search ${res.status}`);
 
   const bodyText = await res.text();
