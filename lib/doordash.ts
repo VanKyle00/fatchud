@@ -2,53 +2,90 @@
 // the analytics payload embedded in the RSC stream. No auth or API key — but
 // also no formal contract, so the page structure can change without warning.
 //
-// DoorDash sits behind Cloudflare/Datadome and pre-blocks datacenter IPs
-// (including Vercel's). Set DOORDASH_PROXY_URL to a residential HTTP proxy
-// (e.g., http://user:pass@gate.provider.com:port) to route fetches through
-// a non-datacenter IP. When unset, fetches go direct (works locally, 403s
-// from most cloud runtimes).
+// DoorDash sits behind Cloudflare/Datadome which pre-blocks both datacenter
+// IPs and requests with non-browser TLS fingerprints. Production needs both:
+//   1. A residential IP via DOORDASH_PROXY_URL env var
+//   2. A Chrome-like TLS fingerprint via cycletls (spawns a Go subprocess)
+//
+// When DOORDASH_PROXY_URL is unset, falls back to plain fetch — works from
+// any residential network, fails (403) from any cloud runtime.
+//
+// next.config.ts must include the linux x64 cycletls binary via
+// outputFileTracingIncludes for `/api/delivery-check` to find it at runtime.
 
-import { ProxyAgent } from "undici";
+import initCycleTLS, { type CycleTLSClient } from "cycletls";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+  "(KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36";
+
+// Chrome 116 JA3 fingerprint
+const JA3 =
+  "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0";
+
+const BROWSER_HEADERS = {
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Upgrade-Insecure-Requests": "1",
+};
 
 const STORE_RE =
   /\\"store_latitude\\":([0-9.\-]+),\\"store_longitude\\":([0-9.\-]+),\\"store_name\\":\\"([^"\\]+)\\"/g;
 
 type Hit = { name: string; lat: number; lng: number };
 
-let proxyAgent: ProxyAgent | null | undefined;
-function getProxyAgent(): ProxyAgent | null {
-  if (proxyAgent !== undefined) return proxyAgent;
-  const url = process.env.DOORDASH_PROXY_URL;
-  proxyAgent = url ? new ProxyAgent(url) : null;
-  return proxyAgent;
+let tlsClient: CycleTLSClient | null = null;
+let tlsInit: Promise<CycleTLSClient> | null = null;
+
+async function getTLSClient(): Promise<CycleTLSClient> {
+  if (tlsClient) return tlsClient;
+  if (tlsInit) return tlsInit;
+  tlsInit = initCycleTLS().then(
+    (c) => {
+      tlsClient = c;
+      tlsInit = null;
+      return c;
+    },
+    (e) => {
+      tlsInit = null;
+      throw e;
+    },
+  );
+  return tlsInit;
+}
+
+async function fetchDoorDash(url: string): Promise<{ status: number; body: string }> {
+  const proxy = process.env.DOORDASH_PROXY_URL;
+  if (proxy) {
+    const tls = await getTLSClient();
+    const res = await tls(url, {
+      ja3: JA3,
+      userAgent: UA,
+      proxy,
+      headers: BROWSER_HEADERS,
+      timeout: 15,
+    });
+    const body = typeof res.data === "string" ? res.data : await res.text();
+    return { status: res.status, body };
+  }
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, ...BROWSER_HEADERS },
+  });
+  return { status: res.status, body: await res.text() };
 }
 
 async function searchDoorDash(query: string, lat: number, lng: number): Promise<Hit[]> {
   const url = `https://www.doordash.com/search/store/${encodeURIComponent(query)}/?lat=${lat}&lng=${lng}`;
-  const agent = getProxyAgent();
-  const init = {
-    headers: {
-      "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "none",
-      "Upgrade-Insecure-Requests": "1",
-    },
-    ...(agent && { dispatcher: agent }),
-  } as Parameters<typeof fetch>[1];
-  const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`doordash search ${res.status}`);
-  const html = await res.text();
+  const { status, body } = await fetchDoorDash(url);
+  if (status < 200 || status >= 300) throw new Error(`doordash search ${status}`);
+
   const hits: Hit[] = [];
   const seen = new Set<string>();
-  for (const m of html.matchAll(STORE_RE)) {
+  for (const m of body.matchAll(STORE_RE)) {
     const sLat = parseFloat(m[1]);
     const sLng = parseFloat(m[2]);
     const sName = m[3];
