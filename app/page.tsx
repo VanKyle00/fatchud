@@ -19,9 +19,15 @@ export default function Home() {
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
   const [spinMode, setSpinMode] = useState<VisitedSpinMode>("all");
   const [mobileCollapsed, setMobileCollapsed] = useState(false);
+  const [pinCenter, setPinCenter] = useState<LatLng | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { visited, toggle: toggleVisited } = useVisited();
+
+  // Typing a new address takes priority over a dragged pin.
+  useEffect(() => {
+    if (located) setPinCenter(null);
+  }, [located]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +58,7 @@ export default function Home() {
   const filtered = useMemo(() => applyFilters(available, filter), [available, filter]);
 
   useEffect(() => {
-    const center = located?.location ?? ipCenter;
+    const center = pinCenter ?? located?.location ?? ipCenter;
     if (!center) return;
     let cancelled = false;
     setLoading(true);
@@ -85,7 +91,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [located, ipCenter]);
+  }, [pinCenter, located, ipCenter]);
 
   useEffect(() => {
     if (restaurants.length === 0) return;
@@ -134,21 +140,29 @@ export default function Home() {
     <div className="relative h-dvh w-screen overflow-hidden">
       <MapView
         center={located?.location ?? ipCenter}
+        pinCenter={pinCenter ?? located?.location ?? ipCenter}
         precise={located !== null}
         restaurants={filtered}
         selectedId={selectedId}
         visited={visited}
         onSelect={handleSelect}
+        onPinMove={setPinCenter}
       />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center p-6">
         <div className="pointer-events-auto w-full max-w-md rounded-3xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/60 p-4 shadow-xl backdrop-blur-xl">
           <h1 className="mb-3 text-xl font-semibold tracking-tight">FatChud.me</h1>
           <AddressInput onLocate={setLocated} />
-          {located && (
+          {pinCenter ? (
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-              {located.formattedAddress}
+              Pinned: {pinCenter.lat.toFixed(4)}, {pinCenter.lng.toFixed(4)}
             </p>
+          ) : (
+            located && (
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                {located.formattedAddress}
+              </p>
+            )
           )}
           {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
         </div>

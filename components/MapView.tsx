@@ -9,12 +9,18 @@ const STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron";
 const STYLE_DARK = "https://tiles.openfreemap.org/styles/positron";
 
 type Props = {
+  // Camera target — map flies/jumps when this changes (address typed, IP loaded).
   center: LatLng | null;
+  // Pin marker target — moves when this changes, doesn't move the camera.
+  // If null, no pin is shown.
+  pinCenter: LatLng | null;
   precise: boolean;
   restaurants: Restaurant[];
   selectedId: string | null;
   visited: Set<string>;
   onSelect: (id: string) => void;
+  // Fires when user drags the pin or clicks the map. Passes the new location.
+  onPinMove?: (loc: LatLng) => void;
 };
 
 const APPROX_ZOOM = 12;
@@ -35,12 +41,25 @@ function hidePoiLabels(map: maplibregl.Map) {
   }
 }
 
-export function MapView({ center, precise, restaurants, selectedId, visited, onSelect }: Props) {
+export function MapView({
+  center,
+  pinCenter,
+  precise,
+  restaurants,
+  selectedId,
+  visited,
+  onSelect,
+  onPinMove,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const userMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const searchPinRef = useRef<maplibregl.Marker | null>(null);
   const pinMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
   const hasJumpedRef = useRef(false);
+  // Keep a live ref to onPinMove so the map click handler always calls the
+  // latest callback without needing to re-bind on every parent re-render.
+  const onPinMoveRef = useRef(onPinMove);
+  onPinMoveRef.current = onPinMove;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -87,17 +106,39 @@ export function MapView({ center, precise, restaurants, selectedId, visited, onS
         essential: true,
       });
     }
-    userMarkerRef.current?.remove();
-    userMarkerRef.current = null;
-    if (precise) {
-      const el = document.createElement("div");
-      el.className =
-        "h-4 w-4 rounded-full bg-blue-500 ring-4 ring-blue-500/30 shadow-lg";
-      userMarkerRef.current = new maplibregl.Marker({ element: el })
-        .setLngLat([center.lng, center.lat])
-        .addTo(map);
-    }
   }, [center, precise]);
+
+  // Draggable search pin — moves independently of the camera. Updates when
+  // pinCenter changes (from address typed, IP loaded, or its own dragend).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !pinCenter) return;
+    if (searchPinRef.current) {
+      searchPinRef.current.setLngLat([pinCenter.lng, pinCenter.lat]);
+      return;
+    }
+    const marker = new maplibregl.Marker({ color: "#e11d48", draggable: true })
+      .setLngLat([pinCenter.lng, pinCenter.lat])
+      .addTo(map);
+    marker.on("dragend", () => {
+      const { lng, lat } = marker.getLngLat();
+      onPinMoveRef.current?.({ lat, lng });
+    });
+    searchPinRef.current = marker;
+  }, [pinCenter]);
+
+  // Click anywhere on the map (not on a marker) to move the search pin there.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const handler = (e: maplibregl.MapMouseEvent) => {
+      onPinMoveRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+    };
+    map.on("click", handler);
+    return () => {
+      map.off("click", handler);
+    };
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
