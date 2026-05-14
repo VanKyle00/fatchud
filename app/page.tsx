@@ -18,6 +18,7 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
   const [spinMode, setSpinMode] = useState<VisitedSpinMode>("all");
+  const [mobileCollapsed, setMobileCollapsed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { visited, toggle: toggleVisited } = useVisited();
@@ -164,7 +165,11 @@ export default function Home() {
         />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 h-[55vh] md:hidden">
+      <div
+        className={`pointer-events-none absolute inset-x-4 bottom-4 z-10 md:hidden ${
+          mobileCollapsed ? "h-auto" : "h-[55vh]"
+        }`}
+      >
         <RestaurantPanel
           restaurants={available}
           filtered={filtered}
@@ -179,6 +184,9 @@ export default function Home() {
           onToggleVisited={toggleVisited}
           onSpinModeChange={setSpinMode}
           loading={loading || checkingAvailability}
+          collapsible
+          collapsed={mobileCollapsed}
+          onToggleCollapsed={() => setMobileCollapsed((v) => !v)}
         />
       </div>
     </div>
