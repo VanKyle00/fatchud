@@ -59,29 +59,31 @@ Expect periodic breakage and check this file when something stops working.
 - Coordinates come from `feedItems[].store.mapMarker.{latitude,longitude}`.
   If that nested path moves, matching silently breaks — change the type and
   extraction in `searchUberEats`.
+- **Diagnostic logging:** the first UberEats call per cold start emits a
+  `[ubereats diag] q="..." status=... top={...} data={...} items=N
+  firstStore={...} firstTitle="..."` line in Vercel logs. If `items=0` for
+  a query that should obviously match (e.g., search for "pizza" in NYC), the
+  endpoint shape changed or they tightened. If `top={status,...}` instead of
+  `top={data}`, they're returning an error envelope. If `firstStore` doesn't
+  include `mapMarker`, the path moved.
 
-## DoorDash (`lib/doordash.ts`)
+## DoorDash — not verified anymore
 
-- **Highest fragility of the three.** No API at all — we parse analytics
-  JSON embedded in the server-rendered React Server Components payload at
-  `GET /search/store/<q>/`. The regex looks for the exact triple
-  `\"store_latitude\":N,\"store_longitude\":N,\"store_name\":\"...\"` in
-  order. If DoorDash reorders the fields, renames any of them, or stops
-  emitting that analytics payload during SSR, matches go to zero.
-- **Cloudflare/Datadome blocks datacenter IPs.** Production deployments on
-  Vercel/AWS/etc. get a 403 at the Cloudflare layer before the request ever
-  reaches DoorDash. Set `DOORDASH_PROXY_URL` to a residential HTTP proxy
-  (format `http://user:pass@gate.example.com:port`) and `lib/doordash.ts`
-  will route fetches through it via undici's `ProxyAgent`. Without the env
-  var set, fetches go direct (works on local/residential networks, 403s
-  from most clouds).
-- **Cached results outlive outages.** If they start gating on
-  `ddweb_session_id` or a bot-token cookie, our fetch will receive a
-  challenge HTML page (or a 403), the regex will find nothing, and the
-  function will silently return `false`. The cached `true` entries from the
-  past 7 days will still serve in a warm Vercel instance, so the failure
-  won't be immediately obvious — but cold starts re-scrape and a
-  consistently-blocked scraper means everything new will return false.
+DoorDash sits behind Cloudflare/Datadome with both IP-reputation and
+TLS-fingerprint blocks. We tried (in order):
+
+1. Direct fetch from Vercel — 403 (datacenter IP blocked)
+2. Residential proxy via `DOORDASH_PROXY_URL` — mix of 403 and ECONNRESET
+   (proxied IP got through some of the time, but Cloudflare flagged the
+   non-browser TLS handshake even when it did)
+3. Residential proxy + `cycletls` (Chrome JA3 spoofing) — still failed
+
+The DoorDash deep-link button in `components/OrderButtons.tsx` is set to
+render unconditionally (always shown, regardless of verification) so users
+can still click through to DoorDash's search page. `isOnDoorDash` is no
+longer called from `app/api/delivery-check/route.ts`; the scraper code
+itself has been removed. Restore from git history if you want to try again
+with a paid web-unlocker service like Bright Data.
 - **No location-setting.** We pass `?lat=&lng=` in the URL but DoorDash may
   not honor it strictly — their session/IP may dominate. Mitigated by the
   150m haversine filter, which discards any out-of-area matches.

@@ -13,8 +13,13 @@ const PLATFORM_BG: Record<Platform, string> = {
   grubhub: "bg-orange-500 hover:bg-orange-600",
 };
 
+// DoorDash availability isn't verified (Cloudflare blocks every scrape attempt
+// from datacenter IPs), but its deep link still works — always show its button
+// as a best-effort link. The other platforms only render when confirmed.
+const ALWAYS_SHOW: Platform[] = ["doordash"];
+
 export function OrderButtons({ name, availability }: Props) {
-  const visible = PLATFORMS.filter((p) => availability[p]);
+  const visible = PLATFORMS.filter((p) => ALWAYS_SHOW.includes(p) || availability[p]);
   if (visible.length === 0) return null;
   return (
     <div className="mt-2 flex gap-1.5">

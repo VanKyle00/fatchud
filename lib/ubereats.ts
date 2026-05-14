@@ -14,6 +14,8 @@ type UberFeedItem = {
   };
 };
 
+let firstCallDiagLogged = false;
+
 async function searchUberEats(query: string, lat: number, lng: number): Promise<UberFeedItem[]> {
   const res = await fetch(SEARCH_URL, {
     method: "POST",
@@ -36,8 +38,33 @@ async function searchUberEats(query: string, lat: number, lng: number): Promise<
     }),
   });
   if (!res.ok) throw new Error(`ubereats search ${res.status}`);
-  const data = (await res.json()) as { data?: { feedItems?: UberFeedItem[] } };
-  return data.data?.feedItems ?? [];
+
+  const bodyText = await res.text();
+  let parsed: { data?: { feedItems?: UberFeedItem[] } } & Record<string, unknown>;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    console.warn(
+      `[ubereats] "${query}" returned non-JSON body (${bodyText.length} bytes): ${bodyText.slice(0, 200)}`,
+    );
+    return [];
+  }
+
+  const items = parsed.data?.feedItems ?? [];
+
+  if (!firstCallDiagLogged) {
+    firstCallDiagLogged = true;
+    const topKeys = Object.keys(parsed ?? {}).join(",");
+    const dataKeys = parsed.data ? Object.keys(parsed.data).join(",") : "(no data field)";
+    const firstStore = items[0]?.store;
+    const firstStoreKeys = firstStore ? Object.keys(firstStore).join(",") : "(no store on first item)";
+    const firstTitle = items[0]?.store?.title?.text ?? "(none)";
+    console.warn(
+      `[ubereats diag] q="${query}" status=${res.status} top={${topKeys}} data={${dataKeys}} items=${items.length} firstStore={${firstStoreKeys}} firstTitle="${firstTitle}"`,
+    );
+  }
+
+  return items;
 }
 
 function normalizeName(s: string): string {

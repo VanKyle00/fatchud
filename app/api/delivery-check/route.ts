@@ -1,4 +1,3 @@
-import { isOnDoorDash } from "@/lib/doordash";
 import { isOnGrubhub } from "@/lib/grubhub";
 import { isOnUberEats } from "@/lib/ubereats";
 
@@ -28,12 +27,16 @@ export async function POST(request: Request) {
       ) {
         return [r.id, { grubhub: false, ubereats: false, doordash: false }] as const;
       }
-      const [grubhub, ubereats, doordash] = await Promise.all([
+      const [grubhub, ubereats] = await Promise.all([
         isOnGrubhub(r.name, r.lat, r.lng),
         isOnUberEats(r.name, r.lat, r.lng),
-        isOnDoorDash(r.name, r.lat, r.lng),
       ]);
-      return [r.id, { grubhub, ubereats, doordash }] as const;
+      // DoorDash is not verified — Cloudflare blocks every scrape attempt from
+      // datacenter IPs even through residential proxies + TLS impersonation.
+      // The DoorDash order button still renders unconditionally (best-effort
+      // deep link to their search). availability.doordash stays false so it
+      // doesn't count toward the "any platform confirmed" filter.
+      return [r.id, { grubhub, ubereats, doordash: false }] as const;
     }),
   );
 
