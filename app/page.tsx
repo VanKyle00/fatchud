@@ -7,14 +7,15 @@ import { RestaurantPanel } from "@/components/RestaurantPanel";
 import { DEFAULT_FILTER, applyFilters, availableCuisines } from "@/lib/filters";
 import { fetchIpLocation } from "@/lib/ip-location";
 import { useVisited, type VisitedSpinMode } from "@/lib/visited";
-import type { FilterState, GeocodeResult, LatLng, Restaurant } from "@/lib/types";
+import type { DeliveryAvailability, FilterState, GeocodeResult, LatLng, Restaurant } from "@/lib/types";
 import type { Deal } from "@/lib/deals";
 
 export default function Home() {
   const [located, setLocated] = useState<GeocodeResult | null>(null);
   const [ipCenter, setIpCenter] = useState<LatLng | null>(null);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [availability, setAvailability] = useState<Record<string, { grubhub: boolean; ubereats: boolean; doordash: boolean }>>({});
+  const [availability, setAvailability] = useState<Record<string, DeliveryAvailability>>({});
+  const [doordashStatus, setDoordashStatus] = useState<Record<string, DeliveryAvailability["doordash"]>>({});
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
@@ -43,6 +44,14 @@ export default function Home() {
     };
   }, []);
 
+  const availabilityMerged = useMemo(() => {
+    const out: Record<string, DeliveryAvailability> = {};
+    for (const id in availability) {
+      out[id] = { ...availability[id], doordash: doordashStatus[id] ?? availability[id].doordash };
+    }
+    return out;
+  }, [availability, doordashStatus]);
+
   const available = useMemo(() => {
     if (restaurants.length === 0) return [];
     const candidates = restaurants.filter((r) => r.delivery !== false);
@@ -52,12 +61,12 @@ export default function Home() {
     if (!allChecked) return candidates;
 
     const confirmed = candidates.filter((r) => {
-      const a = availability[r.id];
-      return a && (a.grubhub || a.ubereats || a.doordash);
+      const a = availabilityMerged[r.id];
+      return a && (a.grubhub || a.ubereats || a.doordash === "yes");
     });
     if (confirmed.length === 0) return candidates;
     return confirmed;
-  }, [restaurants, availability]);
+  }, [restaurants, availability, availabilityMerged]);
   const cuisines = useMemo(() => availableCuisines(available), [available]);
   const filtered = useMemo(() => applyFilters(available, filter), [available, filter]);
 
@@ -85,6 +94,7 @@ export default function Home() {
         setRestaurants(data.restaurants);
         setAvailability({});
         setDeals({});
+        setDoordashStatus({});
       })
       .catch((err) => {
         if (cancelled) return;
@@ -122,7 +132,7 @@ export default function Home() {
       .then(async (res) => {
         if (!res.ok) throw new Error(`availability ${res.status}`);
         return (await res.json()) as {
-          availability: Record<string, { grubhub: boolean; ubereats: boolean; doordash: boolean }>;
+          availability: Record<string, DeliveryAvailability>;
         };
       })
       .then((data) => {
@@ -138,6 +148,39 @@ export default function Home() {
       cancelled = true;
     };
   }, [restaurants]);
+
+  useEffect(() => {
+    if (restaurants.length === 0) return;
+    const candidates = restaurants.filter((r) => r.delivery !== false);
+    if (candidates.length === 0) return;
+    if (Object.keys(doordashStatus).length > 0) return; // already fetched for this set
+    let cancelled = false;
+    fetch("/api/doordash-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurants: candidates.map((r) => ({
+          id: r.id,
+          name: r.name,
+          lat: r.location.lat,
+          lng: r.location.lng,
+        })),
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`doordash-check ${res.status}`);
+        return (await res.json()) as { doordash: Record<string, DeliveryAvailability["doordash"]> };
+      })
+      .then((data) => {
+        if (!cancelled) setDoordashStatus(data.doordash ?? {});
+      })
+      .catch(() => {
+        /* leave doordash as "unknown"; buttons still show, list unchanged */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurants, doordashStatus]);
 
   useEffect(() => {
     if (view !== "deals") return;
@@ -216,7 +259,7 @@ export default function Home() {
           filter={filter}
           cuisines={cuisines}
           selectedId={selectedId}
-          availability={availability}
+          availability={availabilityMerged}
           visited={visited}
           spinMode={spinMode}
           onSelect={handleSelect}
@@ -242,7 +285,7 @@ export default function Home() {
           filter={filter}
           cuisines={cuisines}
           selectedId={selectedId}
-          availability={availability}
+          availability={availabilityMerged}
           visited={visited}
           spinMode={spinMode}
           onSelect={handleSelect}

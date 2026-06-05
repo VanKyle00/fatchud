@@ -17,9 +17,18 @@ const nextConfig: NextConfig = {
   // deploy to so the function bundle doesn't balloon ~95MB.
   outputFileTracingIncludes: {
     "/api/deals": ["./node_modules/cycletls/dist/**"],
+    "/api/doordash-check": ["./node_modules/cycletls/dist/**"],
   },
   outputFileTracingExcludes: {
     "/api/deals": [
+      "./node_modules/cycletls/dist/index-arm",
+      "./node_modules/cycletls/dist/index-arm64",
+      "./node_modules/cycletls/dist/index-freebsd",
+      "./node_modules/cycletls/dist/index-mac",
+      "./node_modules/cycletls/dist/index-mac-arm64",
+      "./node_modules/cycletls/dist/index.exe",
+    ],
+    "/api/doordash-check": [
       "./node_modules/cycletls/dist/index-arm",
       "./node_modules/cycletls/dist/index-arm64",
       "./node_modules/cycletls/dist/index-freebsd",

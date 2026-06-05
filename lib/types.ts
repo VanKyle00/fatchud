@@ -27,3 +27,11 @@ export type FilterState = {
   maxPrice: 1 | 2 | 3 | 4;
   openNow: boolean;
 };
+
+export type DoorDashState = "yes" | "no" | "unknown";
+
+export type DeliveryAvailability = {
+  grubhub: boolean;
+  ubereats: boolean;
+  doordash: DoorDashState;
+};

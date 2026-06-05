@@ -1,10 +1,9 @@
 import { isOnGrubhub } from "@/lib/grubhub";
 import { isOnUberEats } from "@/lib/ubereats";
+import type { DeliveryAvailability } from "@/lib/types";
 
 type Item = { id: string; name: string; lat: number; lng: number };
 type Body = { restaurants?: Item[] };
-
-export type DeliveryAvailability = { grubhub: boolean; ubereats: boolean; doordash: boolean };
 
 export async function POST(request: Request) {
   let body: Body;
@@ -25,18 +24,15 @@ export async function POST(request: Request) {
         typeof r.lat !== "number" ||
         typeof r.lng !== "number"
       ) {
-        return [r.id, { grubhub: false, ubereats: false, doordash: false }] as const;
+        return [r.id, { grubhub: false, ubereats: false, doordash: "unknown" }] as const;
       }
       const [grubhub, ubereats] = await Promise.all([
         isOnGrubhub(r.name, r.lat, r.lng),
         isOnUberEats(r.name, r.lat, r.lng),
       ]);
-      // DoorDash is not verified — Cloudflare blocks every scrape attempt from
-      // datacenter IPs even through residential proxies + TLS impersonation.
-      // The DoorDash order button still renders unconditionally (best-effort
-      // deep link to their search). availability.doordash stays false so it
-      // doesn't count toward the "any platform confirmed" filter.
-      return [r.id, { grubhub, ubereats, doordash: false }] as const;
+      // DoorDash availability is resolved separately and lazily via
+      // /api/doordash-check (cycletls). Here it's "unknown" until that pass runs.
+      return [r.id, { grubhub, ubereats, doordash: "unknown" }] as const;
     }),
   );
 

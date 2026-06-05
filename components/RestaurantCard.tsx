@@ -1,14 +1,13 @@
 "use client";
 
-import type { Restaurant } from "@/lib/types";
-import type { Platform } from "@/lib/deep-links";
+import type { DeliveryAvailability, Restaurant } from "@/lib/types";
 import { OrderButtons } from "./OrderButtons";
 
 type Props = {
   restaurant: Restaurant;
   selected: boolean;
   visited: boolean;
-  availability: Record<Platform, boolean>;
+  availability: DeliveryAvailability;
   onClick: () => void;
   onToggleVisited: () => void;
 };
