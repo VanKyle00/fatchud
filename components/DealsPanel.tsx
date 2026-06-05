@@ -17,6 +17,16 @@ const KIND_LABEL: Record<Deal["kind"], string> = {
   discount: "Discount",
 };
 
+const PLATFORM_LABEL: Record<Deal["platform"], string> = {
+  ubereats: "Order on UberEats",
+  doordash: "Order on DoorDash",
+};
+
+const PLATFORM_BG: Record<Deal["platform"], string> = {
+  ubereats: "bg-green-600 hover:bg-green-700",
+  doordash: "bg-red-500 hover:bg-red-600",
+};
+
 export function DealsPanel({ restaurants, deals, loading, onSelect }: Props) {
   const withDeals = restaurants.filter((r) => (deals[r.id]?.length ?? 0) > 0);
 
@@ -59,14 +69,19 @@ export function DealsPanel({ restaurants, deals, loading, onSelect }: Props) {
               </span>
             ))}
           </div>
-          <a
-            href={orderUrl("ubereats", r.name)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 w-full rounded-full bg-green-600 px-2 py-1 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-green-700"
-          >
-            Order on UberEats
-          </a>
+          <div className="mt-1 flex gap-1.5">
+            {[...new Set(deals[r.id].map((d) => d.platform))].map((p) => (
+              <a
+                key={p}
+                href={orderUrl(p, r.name)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex-1 rounded-full px-2 py-1 text-center text-xs font-semibold text-white shadow-sm transition ${PLATFORM_BG[p]}`}
+              >
+                {PLATFORM_LABEL[p]}
+              </a>
+            ))}
+          </div>
         </div>
       ))}
     </div>
