@@ -44,6 +44,11 @@ export default function Home() {
     };
   }, []);
 
+  const candidates = useMemo(
+    () => restaurants.filter((r) => r.delivery !== false),
+    [restaurants],
+  );
+
   const availabilityMerged = useMemo(() => {
     const out: Record<string, DeliveryAvailability> = {};
     for (const id in availability) {
@@ -53,8 +58,6 @@ export default function Home() {
   }, [availability, doordashStatus]);
 
   const available = useMemo(() => {
-    if (restaurants.length === 0) return [];
-    const candidates = restaurants.filter((r) => r.delivery !== false);
     if (candidates.length === 0) return [];
 
     const allChecked = candidates.every((r) => availability[r.id] !== undefined);
@@ -66,7 +69,7 @@ export default function Home() {
     });
     if (confirmed.length === 0) return candidates;
     return confirmed;
-  }, [restaurants, availability, availabilityMerged]);
+  }, [candidates, availability, availabilityMerged]);
   const cuisines = useMemo(() => availableCuisines(available), [available]);
   const filtered = useMemo(() => applyFilters(available, filter), [available, filter]);
 
@@ -109,8 +112,6 @@ export default function Home() {
   }, [pinCenter, located, ipCenter]);
 
   useEffect(() => {
-    if (restaurants.length === 0) return;
-    const candidates = restaurants.filter((r) => r.delivery !== false);
     if (candidates.length === 0) {
       setCheckingAvailability(false);
       return;
@@ -147,11 +148,9 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [restaurants]);
+  }, [candidates]);
 
   useEffect(() => {
-    if (restaurants.length === 0) return;
-    const candidates = restaurants.filter((r) => r.delivery !== false);
     if (candidates.length === 0) return;
     if (Object.keys(doordashStatus).length > 0) return; // already fetched for this set
     let cancelled = false;
@@ -180,11 +179,11 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [restaurants, doordashStatus]);
+  }, [candidates, doordashStatus]);
 
   useEffect(() => {
     if (view !== "deals") return;
-    if (available.length === 0) return;
+    if (candidates.length === 0) return;
     if (Object.keys(deals).length > 0) return; // already fetched for this restaurant set
     let cancelled = false;
     setDealsLoading(true);
@@ -192,7 +191,7 @@ export default function Home() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        restaurants: available.map((r) => ({
+        restaurants: candidates.map((r) => ({
           id: r.id,
           name: r.name,
           lat: r.location.lat,
@@ -216,7 +215,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [view, available, deals]);
+  }, [view, candidates, deals]);
 
   const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
