@@ -1,10 +1,11 @@
 "use client";
 
 import { PLATFORMS, PLATFORM_LABELS, type Platform, orderUrl } from "@/lib/deep-links";
+import type { DeliveryAvailability } from "@/lib/types";
 
 type Props = {
   name: string;
-  availability: Record<Platform, boolean>;
+  availability: DeliveryAvailability;
 };
 
 const PLATFORM_BG: Record<Platform, string> = {
@@ -13,13 +14,17 @@ const PLATFORM_BG: Record<Platform, string> = {
   grubhub: "bg-orange-500 hover:bg-orange-600",
 };
 
-// DoorDash availability isn't verified (Cloudflare blocks every scrape attempt
-// from datacenter IPs), but its deep link still works — always show its button
-// as a best-effort link. The other platforms only render when confirmed.
-const ALWAYS_SHOW: Platform[] = ["doordash"];
+// Grubhub/UberEats render only when confirmed. DoorDash renders unless it was
+// confirmed absent ("no") — so a successful check that finds it missing hides
+// the button, while an unverified/blocked check keeps the best-effort link.
+function isVisible(p: Platform, a: DeliveryAvailability): boolean {
+  if (p === "doordash") return a.doordash !== "no";
+  if (p === "ubereats") return a.ubereats;
+  return a.grubhub;
+}
 
 export function OrderButtons({ name, availability }: Props) {
-  const visible = PLATFORMS.filter((p) => ALWAYS_SHOW.includes(p) || availability[p]);
+  const visible = PLATFORMS.filter((p) => isVisible(p, availability));
   if (visible.length === 0) return null;
   return (
     <div className="mt-2 flex gap-1.5">

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { FilterState, Restaurant } from "@/lib/types";
-import type { Platform } from "@/lib/deep-links";
+import type { DeliveryAvailability, FilterState, Restaurant } from "@/lib/types";
 import type { VisitedSpinMode } from "@/lib/visited";
 import type { Deal } from "@/lib/deals";
 import { RestaurantCard } from "./RestaurantCard";
@@ -16,7 +15,7 @@ type Props = {
   filter: FilterState;
   cuisines: string[];
   selectedId: string | null;
-  availability: Record<string, Record<Platform, boolean>>;
+  availability: Record<string, DeliveryAvailability>;
   visited: Set<string>;
   spinMode: VisitedSpinMode;
   onSelect: (id: string) => void;
@@ -33,10 +32,10 @@ type Props = {
   dealsLoading: boolean;
 };
 
-const EMPTY_AVAILABILITY: Record<Platform, boolean> = {
-  doordash: false,
-  ubereats: false,
+const EMPTY_AVAILABILITY: DeliveryAvailability = {
   grubhub: false,
+  ubereats: false,
+  doordash: "unknown",
 };
 
 export function RestaurantPanel({

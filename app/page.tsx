@@ -7,14 +7,14 @@ import { RestaurantPanel } from "@/components/RestaurantPanel";
 import { DEFAULT_FILTER, applyFilters, availableCuisines } from "@/lib/filters";
 import { fetchIpLocation } from "@/lib/ip-location";
 import { useVisited, type VisitedSpinMode } from "@/lib/visited";
-import type { FilterState, GeocodeResult, LatLng, Restaurant } from "@/lib/types";
+import type { DeliveryAvailability, FilterState, GeocodeResult, LatLng, Restaurant } from "@/lib/types";
 import type { Deal } from "@/lib/deals";
 
 export default function Home() {
   const [located, setLocated] = useState<GeocodeResult | null>(null);
   const [ipCenter, setIpCenter] = useState<LatLng | null>(null);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [availability, setAvailability] = useState<Record<string, { grubhub: boolean; ubereats: boolean; doordash: boolean }>>({});
+  const [availability, setAvailability] = useState<Record<string, DeliveryAvailability>>({});
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
@@ -53,7 +53,7 @@ export default function Home() {
 
     const confirmed = candidates.filter((r) => {
       const a = availability[r.id];
-      return a && (a.grubhub || a.ubereats || a.doordash);
+      return a && (a.grubhub || a.ubereats || a.doordash === "yes");
     });
     if (confirmed.length === 0) return candidates;
     return confirmed;
@@ -122,7 +122,7 @@ export default function Home() {
       .then(async (res) => {
         if (!res.ok) throw new Error(`availability ${res.status}`);
         return (await res.json()) as {
-          availability: Record<string, { grubhub: boolean; ubereats: boolean; doordash: boolean }>;
+          availability: Record<string, DeliveryAvailability>;
         };
       })
       .then((data) => {
