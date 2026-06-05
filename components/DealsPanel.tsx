@@ -14,6 +14,7 @@ type Props = {
 const KIND_LABEL: Record<Deal["kind"], string> = {
   bogo: "BOGO",
   free_item: "Free item",
+  discount: "Discount",
 };
 
 export function DealsPanel({ restaurants, deals, loading, onSelect }: Props) {
