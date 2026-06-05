@@ -72,11 +72,15 @@ Expect periodic breakage and check this file when something stops working.
   `top={data}`, they're returning an error envelope. If `firstStore` doesn't
   include `mapMarker`, the path moved.
 
-## DoorDash deals (`lib/doordash.ts`) — re-enabled via cycletls
+## DoorDash deals + availability (`lib/doordash.ts`) — re-enabled via cycletls
 
-This file now hosts the **deals** scraper (used by `app/api/deals`), separate
-from the old *availability* scraper described under "not verified anymore"
-below (that one is still removed from `delivery-check`).
+This file hosts both the **deals** scraper (`app/api/deals`) and the **availability**
+check (`app/api/doordash-check`). Both go through one `getDoorDashStoreInfo`
+(fetch+parse+match, cached once as `scraper:doordash:<key>`), so DoorDash is hit
+at most once per restaurant. Availability is **tri-state** (`doordashState`:
+`"yes"`/`"no"`/`"unknown"`) and resolved lazily off the critical path; the old
+"keep DoorDash disabled / it shrinks the list" guidance no longer applies (the
+OR-filter means it can only add restaurants).
 
 - **What it reads.** `GET /search/store/<q>/?lat=&lng=` SSR HTML. Each store's
   analytics object co-locates `store_name`/`store_latitude`/`store_longitude`;
@@ -93,16 +97,17 @@ below (that one is still removed from `delivery-check`).
   residential origin. `PROXY_URL` is passed to cycletls for the IP signal when
   the origin is a datacenter (Vercel) — but Vercel-via-proxy is unverified.
 - **Bundling.** cycletls is `serverExternalPackages` + force-included for
-  `/api/deals` in `next.config.ts`. If the binary is missing at runtime,
-  `initCycleTLS` throws and `getDoorDashDeals` silent-degrades to `[]`.
+  `/api/deals` and `/api/doordash-check` in `next.config.ts`. If the binary is
+  missing at runtime, `initCycleTLS` throws and the caller silent-degrades
+  (`getDoorDashDeals` → `[]`, `doordashState` → `"unknown"`).
 - **Detection signal.** If DoorDash deals vanish: run the `getTLSClient` path by
   hand; a `403` means JA3 rotated (update `JA3`), an empty parse means the RSC
   field layout moved (re-check the `promotion_title`↔`store_name` offset).
 
-## DoorDash availability — not verified anymore
+## DoorDash — historical blocking notes (Vercel)
 
 DoorDash sits behind Cloudflare/Datadome with both IP-reputation and
-TLS-fingerprint blocks. We tried (in order):
+TLS-fingerprint blocks. From Vercel's datacenter IPs we tried (in order):
 
 1. Direct fetch from Vercel — 403 (datacenter IP blocked)
 2. Residential proxy via `DOORDASH_PROXY_URL` — mix of 403 and ECONNRESET
@@ -110,12 +115,13 @@ TLS-fingerprint blocks. We tried (in order):
    non-browser TLS handshake even when it did)
 3. Residential proxy + `cycletls` (Chrome JA3 spoofing) — still failed
 
-The DoorDash deep-link button in `components/OrderButtons.tsx` is set to
-render unconditionally (always shown, regardless of verification) so users
-can still click through to DoorDash's search page. `isOnDoorDash` is no
-longer called from `app/api/delivery-check/route.ts`; the scraper code
-itself has been removed. Restore from git history if you want to try again
-with a paid web-unlocker service like Bright Data.
+**What changed:** from a *residential origin*, cycletls (Chrome JA3) alone
+clears the block — the JA3 fingerprint was the real gate, not the IP (see the
+"re-enabled via cycletls" section above). DoorDash deals **and** availability
+are now live through that path, and the DoorDash button is tri-state (shown
+unless confirmed absent via `app/api/doordash-check`), no longer unconditional.
+Vercel-via-proxy (datacenter IP + cycletls) is still unverified — a paid
+web-unlocker like Bright Data would likely clear both signals.
 - **No location-setting.** We pass `?lat=&lng=` in the URL but DoorDash may
   not honor it strictly — their session/IP may dominate. Mitigated by the
   150m haversine filter, which discards any out-of-area matches.

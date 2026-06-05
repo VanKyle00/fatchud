@@ -68,26 +68,18 @@ npm run dev
 
 Requires a Google Cloud project with **Places API (New)** and **Geocoding API** enabled. Restrict the key to HTTP referrers from your deployment domain — the only credential is server-side, but a leaked unrestricted key is still cheap to abuse.
 
-### Enabling DoorDash scraping locally
+### DoorDash scraping (deals + availability)
 
-DoorDash is wired up as deep-link-only in production because Cloudflare/Datadome will not let the scraper through from Vercel. From a developer machine on a residential ISP it generally *does* work, which is the only setup where the original scraper is still useful.
+DoorDash is **active**: both the deals tab and the verified availability check (`/api/doordash-check`) run through `lib/doordash.ts` via `cycletls` (a Chrome JA3 handshake). It works from a residential origin out of the box — no manual enabling needed.
 
-**To turn it back on for a local clone:**
+**Why DoorDash needs cycletls — and why Vercel is still unverified:**
 
-1. Restore `lib/doordash.ts` from git history (the file was removed when production gave up on it — see `SCRAPER_NOTES.md` for the rationale).
-2. In `app/api/delivery-check/route.ts`, add `isOnDoorDash` to the `Promise.all` fan-out alongside `isOnGrubhub` / `isOnUberEats`, and write the result into `availability.doordash` instead of the hardcoded `false`.
-3. Run `npm run dev` and hit `/api/delivery-check` with a known-good restaurant to confirm the response now carries `"doordash": true` where expected.
+DoorDash's edge stack gates on two independent signals:
 
-**Why this only works locally — and what specifically fails on Vercel:**
+- **TLS fingerprint (JA3) — the real blocker.** Node's default TLS ClientHello looks nothing like Chrome's, so DoorDash returns `403` to a plain `fetch` **even from a residential IP** (verified: `curl` from the same IP gets `200`). `lib/doordash.ts` uses `cycletls` to present a Chrome JA3, which clears it. This corrects an earlier assumption that a vanilla residential `fetch` would work — it does not.
+- **IP reputation.** Direct fetches from Vercel's datacenter IP ranges also get `403` from Cloudflare. From a residential origin the IP is already fine; on Vercel you'd additionally need a residential `PROXY_URL` (passed through to cycletls), but that combination is unverified — a paid web-unlocker (Bright Data, ScraperAPI) would be the reliable path.
 
-DoorDash's edge stack gates on two independent signals; you need to pass both, and Vercel fails both.
-
-- **IP reputation.** Direct fetches from Vercel's datacenter IP ranges get an immediate `403` from Cloudflare. A residential proxy (we tried this via a `DOORDASH_PROXY_URL` env var) only partially helps — some requests get through, but enough are met with `403` or `ECONNRESET` that the per-restaurant check is unusably flaky.
-- **TLS fingerprint (JA3).** Node's default TLS ClientHello looks nothing like Chrome's. Even when a residential proxy lands the request on a "good" IP, Datadome flags the handshake and drops the connection. We tried `cycletls` to spoof a Chrome JA3 over the residential proxy — still blocked. A paid web-unlocker service (Bright Data, ScraperAPI, etc.) that handles both signals end-to-end would likely work, but is out of scope for the free-tier deploy.
-
-Running locally sidesteps both: your home ISP IP isn't on any datacenter blocklist, and the same vanilla Node TLS handshake that gets flagged from `*.vercel.app` is unremarkable when it originates from a residential connection. No proxy or JA3 spoofing needed.
-
-⚠️ Keep DoorDash *disabled* on any branch you intend to deploy. If `isOnDoorDash` is in the fan-out on Vercel, every restaurant returns `false` from that branch of the check, the global `available` filter shrinks accordingly, and the visible restaurant list silently gets worse.
+DoorDash availability is now resolved lazily via `/api/doordash-check` (cycletls Chrome-JA3 transport) and is **tri-state**: `"yes"` (confirmed — counts toward the list), `"no"` (confirmed absent — button hidden), `"unknown"` (blocked/errored — best-effort button still shows, not counted). Because the list filter is OR across platforms, re-enabling DoorDash can only *add* DoorDash-exclusive restaurants, never shrink the list. On a blocked origin (e.g. a Vercel datacenter IP, still unverified) every result is `"unknown"`, which is a no-op versus the old hardcoded behavior — no regression.
 
 ## Operational notes
 
