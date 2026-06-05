@@ -72,7 +72,34 @@ Expect periodic breakage and check this file when something stops working.
   `top={data}`, they're returning an error envelope. If `firstStore` doesn't
   include `mapMarker`, the path moved.
 
-## DoorDash — not verified anymore
+## DoorDash deals (`lib/doordash.ts`) — re-enabled via cycletls
+
+This file now hosts the **deals** scraper (used by `app/api/deals`), separate
+from the old *availability* scraper described under "not verified anymore"
+below (that one is still removed from `delivery-check`).
+
+- **What it reads.** `GET /search/store/<q>/?lat=&lng=` SSR HTML. Each store's
+  analytics object co-locates `store_name`/`store_latitude`/`store_longitude`;
+  the store's `promotion_title` (e.g. `"$5 off on $35+"`) sits ~500-600 chars
+  earlier in the same per-store segment. `parseDoorDashStores` keys off this.
+  Only `%`/`$` discounts surface at the store-search level — **BOGO/free-item
+  do NOT** (those live inside store menu pages as a `(BOGO)` item-name suffix,
+  not scraped here).
+- **JA3 is the real blocker, not IP.** Verified 2026-06-05: Node's vanilla
+  `fetch` gets a `403` from DoorDash *even on a residential IP*, while `curl`
+  (browser-like TLS) gets `200` from the same IP. So the TLS/JA3 fingerprint —
+  not IP reputation — is what blocks the app. `getDoorDashDeals` therefore goes
+  through **cycletls** with a Chrome JA3, which clears the 403 from a
+  residential origin. `PROXY_URL` is passed to cycletls for the IP signal when
+  the origin is a datacenter (Vercel) — but Vercel-via-proxy is unverified.
+- **Bundling.** cycletls is `serverExternalPackages` + force-included for
+  `/api/deals` in `next.config.ts`. If the binary is missing at runtime,
+  `initCycleTLS` throws and `getDoorDashDeals` silent-degrades to `[]`.
+- **Detection signal.** If DoorDash deals vanish: run the `getTLSClient` path by
+  hand; a `403` means JA3 rotated (update `JA3`), an empty parse means the RSC
+  field layout moved (re-check the `promotion_title`↔`store_name` offset).
+
+## DoorDash availability — not verified anymore
 
 DoorDash sits behind Cloudflare/Datadome with both IP-reputation and
 TLS-fingerprint blocks. We tried (in order):
