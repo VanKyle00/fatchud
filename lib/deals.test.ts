@@ -45,7 +45,7 @@ test("extractDeals: keeps BOGO + free-item items, ignores discounts and plain me
     },
   };
   assert.deepEqual(extractDeals(storeJson), [
-    { kind: "bogo", text: "Bunch of Tulips (10 Stems)" },
-    { kind: "free_item", text: "Chocolate Chip Cookie" },
+    { kind: "bogo", text: "Bunch of Tulips (10 Stems)", platform: "ubereats" },
+    { kind: "free_item", text: "Chocolate Chip Cookie", platform: "ubereats" },
   ]);
 });

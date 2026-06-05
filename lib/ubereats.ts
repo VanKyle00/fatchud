@@ -9,20 +9,12 @@
 // residential HTTP proxy (format http://user:pass@gate.example.com:port) to
 // route fetches through a non-datacenter IP and get real results.
 
-import { ProxyAgent } from "undici";
+import { getProxyAgent } from "@/lib/proxy";
 
 const SEARCH_URL = "https://www.ubereats.com/api/getFeedV1";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/130.0 Safari/537.36";
-
-let proxyAgent: ProxyAgent | null | undefined;
-function getProxyAgent(): ProxyAgent | null {
-  if (proxyAgent !== undefined) return proxyAgent;
-  const url = process.env.UBEREATS_PROXY_URL;
-  proxyAgent = url ? new ProxyAgent(url) : null;
-  return proxyAgent;
-}
 
 type UberFeedItem = {
   store?: {
