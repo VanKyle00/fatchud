@@ -14,6 +14,7 @@ import initCycleTLS, { type CycleTLSClient } from "cycletls";
 import { readCache, writeCache } from "@/lib/cache";
 import { getProxyUrl } from "@/lib/proxy";
 import type { Deal } from "@/lib/deals";
+import type { DoorDashState } from "@/lib/types";
 
 // Chrome 116 UA + matching JA3 fingerprint.
 const UA =
@@ -110,6 +111,24 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
+// Pure: find the store matching this restaurant by normalized name + <150m.
+export function matchStore(
+  stores: DoorDashStore[],
+  name: string,
+  lat: number,
+  lng: number,
+): { matched: boolean; promotionTitle: string } {
+  const target = normalizeName(name);
+  for (const s of stores) {
+    if (haversineMeters(lat, lng, s.lat, s.lng) > MATCH_RADIUS_M) continue;
+    const candidate = normalizeName(s.name);
+    if (candidate.includes(target) || target.includes(candidate)) {
+      return { matched: true, promotionTitle: s.promotionTitle };
+    }
+  }
+  return { matched: false, promotionTitle: "" };
+}
+
 async function fetchSearchHtml(query: string, lat: number, lng: number): Promise<string> {
   const url = `https://www.doordash.com/search/store/${encodeURIComponent(query)}/?lat=${lat}&lng=${lng}`;
   const tls = await getTLSClient();
@@ -125,30 +144,44 @@ async function fetchSearchHtml(query: string, lat: number, lng: number): Promise
   return typeof res.data === "string" ? res.data : await res.text();
 }
 
-export async function getDoorDashDeals(name: string, lat: number, lng: number): Promise<Deal[]> {
-  const cacheKey = `scraper:doordash-deals:${normalizeName(name)}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
-  const cached = await readCache<Deal[]>(cacheKey);
+// One fetch+parse+match per restaurant, cached. Both availability and deals
+// derive from this — DoorDash is hit at most once per restaurant. Throws on
+// fetch error so callers can tell "blocked/errored" from "found nothing".
+export async function getDoorDashStoreInfo(
+  name: string,
+  lat: number,
+  lng: number,
+): Promise<{ matched: boolean; promotionTitle: string }> {
+  const cacheKey = `scraper:doordash:${normalizeName(name)}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
+  const cached = await readCache<{ matched: boolean; promotionTitle: string }>(cacheKey);
   if (cached !== null) return cached;
 
-  let deals: Deal[] = [];
+  const html = await fetchSearchHtml(name, lat, lng);
+  const stores = parseDoorDashStores(html);
+  const info = matchStore(stores, name, lat, lng);
+  await writeCache(cacheKey, info, TTL_SECONDS);
+  return info;
+}
+
+export async function getDoorDashDeals(name: string, lat: number, lng: number): Promise<Deal[]> {
   try {
-    const html = await fetchSearchHtml(name, lat, lng);
-    const stores = parseDoorDashStores(html);
-    const target = normalizeName(name);
-    for (const s of stores) {
-      if (!s.promotionTitle) continue;
-      if (haversineMeters(lat, lng, s.lat, s.lng) > MATCH_RADIUS_M) continue;
-      const candidate = normalizeName(s.name);
-      if (candidate.includes(target) || target.includes(candidate)) {
-        deals = [{ kind: "discount", text: s.promotionTitle, platform: "doordash" }];
-        break;
-      }
+    const { matched, promotionTitle } = await getDoorDashStoreInfo(name, lat, lng);
+    if (matched && promotionTitle) {
+      return [{ kind: "discount", text: promotionTitle, platform: "doordash" }];
     }
+    return [];
   } catch (err) {
     console.warn(`[doordash deals] "${name}" failed:`, err instanceof Error ? err.message : err);
-    deals = [];
+    return [];
   }
+}
 
-  await writeCache(cacheKey, deals, TTL_SECONDS);
-  return deals;
+export async function doordashState(name: string, lat: number, lng: number): Promise<DoorDashState> {
+  try {
+    const { matched } = await getDoorDashStoreInfo(name, lat, lng);
+    return matched ? "yes" : "no";
+  } catch (err) {
+    console.warn(`[doordash availability] "${name}" failed:`, err instanceof Error ? err.message : err);
+    return "unknown";
+  }
 }
