@@ -8,6 +8,7 @@ import { DEFAULT_FILTER, applyFilters, availableCuisines } from "@/lib/filters";
 import { fetchIpLocation } from "@/lib/ip-location";
 import { useVisited, type VisitedSpinMode } from "@/lib/visited";
 import type { FilterState, GeocodeResult, LatLng, Restaurant } from "@/lib/types";
+import type { Deal } from "@/lib/deals";
 
 export default function Home() {
   const [located, setLocated] = useState<GeocodeResult | null>(null);
@@ -22,6 +23,9 @@ export default function Home() {
   const [pinCenter, setPinCenter] = useState<LatLng | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"nearby" | "deals">("nearby");
+  const [deals, setDeals] = useState<Record<string, Deal[]>>({});
+  const [dealsLoading, setDealsLoading] = useState(false);
   const { visited, toggle: toggleVisited } = useVisited();
 
   // Typing a new address takes priority over a dragged pin.
@@ -80,6 +84,7 @@ export default function Home() {
         if (cancelled) return;
         setRestaurants(data.restaurants);
         setAvailability({});
+        setDeals({});
       })
       .catch((err) => {
         if (cancelled) return;
@@ -134,6 +139,42 @@ export default function Home() {
     };
   }, [restaurants]);
 
+  useEffect(() => {
+    if (view !== "deals") return;
+    if (available.length === 0) return;
+    if (Object.keys(deals).length > 0) return; // already fetched for this restaurant set
+    let cancelled = false;
+    setDealsLoading(true);
+    fetch("/api/deals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurants: available.map((r) => ({
+          id: r.id,
+          name: r.name,
+          lat: r.location.lat,
+          lng: r.location.lng,
+        })),
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`deals ${res.status}`);
+        return (await res.json()) as { deals: Record<string, Deal[]> };
+      })
+      .then((data) => {
+        if (!cancelled) setDeals(data.deals ?? {});
+      })
+      .catch(() => {
+        /* leave deals empty; panel shows empty state */
+      })
+      .finally(() => {
+        if (!cancelled) setDealsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, available, deals]);
+
   const handleSelect = useCallback((id: string) => setSelectedId(id), []);
 
   return (
@@ -183,6 +224,10 @@ export default function Home() {
           onToggleVisited={toggleVisited}
           onSpinModeChange={setSpinMode}
           loading={loading || checkingAvailability}
+          view={view}
+          onViewChange={setView}
+          deals={deals}
+          dealsLoading={dealsLoading}
         />
       </div>
 
@@ -205,6 +250,10 @@ export default function Home() {
           onToggleVisited={toggleVisited}
           onSpinModeChange={setSpinMode}
           loading={loading || checkingAvailability}
+          view={view}
+          onViewChange={setView}
+          deals={deals}
+          dealsLoading={dealsLoading}
           collapsible
           collapsed={mobileCollapsed}
           onToggleCollapsed={() => setMobileCollapsed((v) => !v)}
