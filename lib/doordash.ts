@@ -3,21 +3,57 @@
 // store's promotion_title ~500-600 chars earlier in the same per-store segment
 // (verified 2026-06-05). No formal contract — the page structure can change.
 //
-// DoorDash gates on IP reputation AND TLS/JA3 fingerprint. From a residential
-// origin a plain fetch works; from a datacenter (Vercel) it 403s. The shared
-// residential proxy fixes the IP but not the fingerprint — see SCRAPER_NOTES.md.
+// DoorDash gates on TWO signals: TLS/JA3 fingerprint AND IP reputation. The
+// fingerprint check blocks Node's vanilla fetch with a 403 even from a
+// residential IP (verified 2026-06-05), so we go through cycletls with a Chrome
+// JA3 to clear it. The shared proxy URL (PROXY_URL) is passed through for the IP
+// signal when the origin is a datacenter (Vercel) — see SCRAPER_NOTES.md.
 // Failures return [] so the restaurant simply has no DoorDash deal.
 
+import initCycleTLS, { type CycleTLSClient } from "cycletls";
 import { readCache, writeCache } from "@/lib/cache";
-import { getProxyAgent } from "@/lib/proxy";
+import { getProxyUrl } from "@/lib/proxy";
 import type { Deal } from "@/lib/deals";
 
+// Chrome 116 UA + matching JA3 fingerprint.
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+  "(KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36";
+const JA3 =
+  "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0";
+const BROWSER_HEADERS = {
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Upgrade-Insecure-Requests": "1",
+};
 
 const MATCH_RADIUS_M = 150;
 const TTL_SECONDS = 60 * 60 * 12; // 12h — promos rotate
+
+let tlsClient: CycleTLSClient | null = null;
+let tlsInit: Promise<CycleTLSClient> | null = null;
+
+// cycletls spawns a Go subprocess; init once and reuse. Concurrent callers share
+// the in-flight init promise.
+async function getTLSClient(): Promise<CycleTLSClient> {
+  if (tlsClient) return tlsClient;
+  if (tlsInit) return tlsInit;
+  tlsInit = initCycleTLS().then(
+    (c) => {
+      tlsClient = c;
+      tlsInit = null;
+      return c;
+    },
+    (e) => {
+      tlsInit = null;
+      throw e;
+    },
+  );
+  return tlsInit;
+}
 
 export type DoorDashStore = { name: string; lat: number; lng: number; promotionTitle: string };
 
@@ -75,22 +111,18 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
 }
 
 async function fetchSearchHtml(query: string, lat: number, lng: number): Promise<string> {
-  const agent = getProxyAgent();
   const url = `https://www.doordash.com/search/store/${encodeURIComponent(query)}/?lat=${lat}&lng=${lng}`;
-  const init = {
-    headers: {
-      "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "none",
-    },
-    ...(agent && { dispatcher: agent }),
-  } as Parameters<typeof fetch>[1];
-  const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`doordash search ${res.status}`);
-  return res.text();
+  const tls = await getTLSClient();
+  const proxy = getProxyUrl();
+  const res = await tls(url, {
+    ja3: JA3,
+    userAgent: UA,
+    headers: BROWSER_HEADERS,
+    timeout: 20,
+    ...(proxy && { proxy }),
+  });
+  if (res.status < 200 || res.status >= 300) throw new Error(`doordash search ${res.status}`);
+  return typeof res.data === "string" ? res.data : await res.text();
 }
 
 export async function getDoorDashDeals(name: string, lat: number, lng: number): Promise<Deal[]> {
