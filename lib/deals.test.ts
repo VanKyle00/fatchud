@@ -1,25 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyOffer, extractDeals, collectStrings } from "./deals";
+import { kindFromPromoType, extractDeals, collectStrings } from "./deals";
 
-test("classifyOffer: BOGO phrasings", () => {
-  assert.equal(classifyOffer("Buy 1 Get 1 Free and more"), "bogo");
-  assert.equal(classifyOffer("Buy One Get One Free"), "bogo");
-  assert.equal(classifyOffer("BOGO"), "bogo");
-  assert.equal(classifyOffer("2 for 1"), "bogo");
+test("kindFromPromoType: BOGO enums map to bogo", () => {
+  assert.equal(kindFromPromoType("BOGO"), "bogo");
+  assert.equal(kindFromPromoType("BUY_X_GET_Y"), "bogo");
 });
 
-test("classifyOffer: free-item phrasings", () => {
-  assert.equal(classifyOffer("Free Beef Franks (12 oz)"), "free_item");
-  assert.equal(classifyOffer("Free Item"), "free_item");
+test("kindFromPromoType: free enums map to free_item", () => {
+  assert.equal(kindFromPromoType("FREE_ITEM"), "free_item");
 });
 
-test("classifyOffer: excluded deals return null", () => {
-  assert.equal(classifyOffer("10% off"), null);
-  assert.equal(classifyOffer("$5 off on $40+"), null);
-  assert.equal(classifyOffer("Free delivery"), null);
-  assert.equal(classifyOffer("$0 Delivery Fee"), null);
-  assert.equal(classifyOffer("Items on sale"), null);
+test("kindFromPromoType: discounts and empty map to null", () => {
+  assert.equal(kindFromPromoType("DISCOUNTED_ITEM"), null);
+  assert.equal(kindFromPromoType(""), null);
+  assert.equal(kindFromPromoType(null), null);
+  assert.equal(kindFromPromoType(undefined), null);
 });
 
 test("collectStrings: gathers all nested string values", () => {
@@ -27,20 +23,29 @@ test("collectStrings: gathers all nested string values", () => {
   assert.deepEqual(got.sort(), ["x", "y", "z"]);
 });
 
-test("extractDeals: keeps BOGO + free-item, drops the rest, dedupes, strips HTML", () => {
+test("extractDeals: keeps BOGO + free-item items, ignores discounts and plain menu items", () => {
   const storeJson = {
-    title: "Buy 1 Get 1 Free and more",
-    items: [
-      "Free Beef Franks (12 oz) <img src=\"x\">",
-      "10% off",
-      "Free delivery",
-      "Buy 1 Get 1 Free and more",
-      "This is a very long terms and conditions sentence about a free item reward redeemable later.",
-    ],
+    catalogSectionsMap: {
+      s: [
+        {
+          payload: {
+            standardItemsPayload: {
+              catalogItems: [
+                { title: "Bunch of Tulips (10 Stems)", catalogItemAnalyticsData: { promoType: "BOGO" } },
+                { title: "Plant Beverage (42 fl oz)", catalogItemAnalyticsData: { promoType: "DISCOUNTED_ITEM" } },
+                { title: "Stella Artois Alcohol Free Beer (6 x 11.2 fl oz)" }, // no promo -> ignored
+                { title: "Free Range Brown Eggs (12 ct)", catalogItemAnalyticsData: { promoType: "" } }, // not a promo -> ignored
+                { title: "Chocolate Chip Cookie", catalogItemAnalyticsData: { promoType: "FREE_ITEM" } },
+                { title: "Bunch of Tulips (10 Stems)", catalogItemAnalyticsData: { promoType: "BOGO" } }, // dupe -> collapsed
+              ],
+            },
+          },
+        },
+      ],
+    },
   };
-  const deals = extractDeals(storeJson);
-  assert.deepEqual(deals, [
-    { kind: "bogo", text: "Buy 1 Get 1 Free and more" },
-    { kind: "free_item", text: "Free Beef Franks (12 oz)" },
+  assert.deepEqual(extractDeals(storeJson), [
+    { kind: "bogo", text: "Bunch of Tulips (10 Stems)" },
+    { kind: "free_item", text: "Chocolate Chip Cookie" },
   ]);
 });
