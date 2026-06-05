@@ -6,7 +6,11 @@
 // that enum rather than scanning free text — product names like "Alcohol Free
 // Beer" or "Free Range Eggs" would otherwise be misread as free-item deals.
 
-export type Deal = { kind: "bogo" | "free_item"; text: string };
+export type Deal = {
+  kind: "bogo" | "free_item" | "discount";
+  text: string;
+  platform: "ubereats" | "doordash";
+};
 
 // Map UberEats' item promoType enum to the deal kinds we surface. Everything
 // else (DISCOUNTED_ITEM, percent/dollar off, none) is intentionally dropped —
@@ -69,7 +73,7 @@ export function extractDeals(storeJson: unknown): Deal[] {
     const text = sanitize(item.title ?? "");
     if (!text || seen.has(text)) continue;
     seen.add(text);
-    deals.push({ kind, text });
+    deals.push({ kind, text, platform: "ubereats" });
   }
   return deals;
 }

@@ -1,4 +1,5 @@
 import { getUberEatsDeals } from "@/lib/ubereats";
+import { getDoorDashDeals } from "@/lib/doordash";
 import type { Deal } from "@/lib/deals";
 
 type Item = { id: string; name: string; lat: number; lng: number };
@@ -25,8 +26,12 @@ export async function POST(request: Request) {
       ) {
         return [r.id, [] as Deal[]] as const;
       }
-      const deals = await getUberEatsDeals(r.name, r.lat, r.lng);
-      return [r.id, deals] as const;
+      const [uber, doordash] = await Promise.all([
+        getUberEatsDeals(r.name, r.lat, r.lng),
+        getDoorDashDeals(r.name, r.lat, r.lng),
+      ]);
+      const merged: Deal[] = [...uber, ...doordash];
+      return [r.id, merged] as const;
     }),
   );
 
