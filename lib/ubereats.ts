@@ -26,8 +26,10 @@ function getProxyAgent(): ProxyAgent | null {
 
 type UberFeedItem = {
   store?: {
+    storeUuid?: string;
     title?: { text?: string };
     mapMarker?: { latitude?: number; longitude?: number };
+    signposts?: unknown;
   };
 };
 
@@ -107,6 +109,7 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
 }
 
 import { readCache, writeCache } from "@/lib/cache";
+import { collectStrings, extractDeals, type Deal } from "@/lib/deals";
 
 const MATCH_RADIUS_M = 150;
 const TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -138,4 +141,61 @@ export async function isOnUberEats(name: string, lat: number, lng: number): Prom
 
   await writeCache(cacheKey, result, TTL_SECONDS);
   return result;
+}
+
+const DEALS_TTL_SECONDS = 60 * 60 * 12; // 12h — promos rotate faster than availability
+
+const STORE_URL = "https://www.ubereats.com/api/getStoreV1?localeCode=us";
+
+async function fetchStorefront(storeUuid: string): Promise<unknown> {
+  const agent = getProxyAgent();
+  const init = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-csrf-token": "x",
+      "User-Agent": UA,
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ storeUuid }),
+    ...(agent && { dispatcher: agent }),
+  } as Parameters<typeof fetch>[1];
+  const res = await fetch(STORE_URL, init);
+  if (!res.ok) throw new Error(`ubereats store ${res.status}`);
+  return res.json();
+}
+
+export async function getUberEatsDeals(name: string, lat: number, lng: number): Promise<Deal[]> {
+  const cacheKey = `scraper:ubereats-deals:${normalizeName(name)}|${lat.toFixed(3)}|${lng.toFixed(3)}`;
+  const cached = await readCache<Deal[]>(cacheKey);
+  if (cached !== null) return cached;
+
+  let deals: Deal[] = [];
+  try {
+    const items = await searchUberEats(name, lat, lng);
+    const target = normalizeName(name);
+    const match = items.find((item) => {
+      const title = item.store?.title?.text;
+      const m = item.store?.mapMarker;
+      if (!title || typeof m?.latitude !== "number" || typeof m.longitude !== "number") return false;
+      if (haversineMeters(lat, lng, m.latitude, m.longitude) > MATCH_RADIUS_M) return false;
+      const candidate = normalizeName(title);
+      return candidate.includes(target) || target.includes(candidate);
+    });
+
+    const uuid = match?.store?.storeUuid;
+    // Cost gate: only fetch the ~280KB storefront when the feed already shows an
+    // offer signpost for this store. Offer-free stores cost zero extra requests.
+    const hasOfferSignal = collectStrings(match?.store?.signposts).length > 0;
+    if (uuid && hasOfferSignal) {
+      const store = await fetchStorefront(uuid);
+      deals = extractDeals(store);
+    }
+  } catch (err) {
+    console.warn(`[ubereats deals] "${name}" failed:`, err instanceof Error ? err.message : err);
+    deals = [];
+  }
+
+  await writeCache(cacheKey, deals, DEALS_TTL_SECONDS);
+  return deals;
 }
