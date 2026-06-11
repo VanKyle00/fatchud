@@ -79,7 +79,7 @@ export function FilterBar({ filter, cuisines, onChange }: Props) {
       </div>
 
       {cuisines.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto md:max-h-none">
           {cuisines.map((c) => {
             const active = filter.cuisines.includes(c);
             return (
